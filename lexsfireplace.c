@@ -3,14 +3,14 @@
 #include <time.h>
 #include <unistd.h>
 
-#define WIDTH 80
+#define WIDTH 60
 #define HEIGHT 24
 
 // This array maps to 256-color palette (flame colors: black -> red -> orange -> yellow -> white)
 int fire_palette[] = {
-    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 230, 231
+    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 230, 231, 231, 231, 231, 231, 231, 231, 231, 231,
 };
-#define PALETTE_SIZE 14
+#define PALETTE_SIZE 22
 
 int main() {
     int fire[HEIGHT][WIDTH] = {0};
@@ -44,8 +44,8 @@ int main() {
                             fire[(y + 2) % HEIGHT][x];
                 
                 int avg = total / 4;
-                if (avg > 0 && rand() % 10 > 8) {
-                    fire[y][x] = avg - 2; // Decay
+                if (avg > 0 && rand() % 18 > 16) {
+                    fire[y][x] = avg - 6; // Decay
                 } else {
                     fire[y][x] = avg;
                 }
