@@ -15,14 +15,18 @@ int fire_palette[] = {
 
 int main() {
     int fire[HEIGHT][WIDTH] = {0};
-    
+    int x = 0;
+    int y;
+    int z;
+    int max_x, max_y;
+
     // Initialize ncurses
     initscr();
     start_color();
     use_default_colors();
     curs_set(0); // Hide cursor
-    timeout(30); // Frame delay in ms
-
+    timeout(20); // Frame delay in ms
+    
     // Initialize Color Pairs
     // We pair the fire color with itself (foreground/background) to make a solid block
     for (int i = 0; i < PALETTE_SIZE; i++) {
@@ -61,7 +65,9 @@ int main() {
                 if (color_idx > 0) {
                     attron(COLOR_PAIR(color_idx));
                     // Use two spaces to create a "square" block look
-                    mvaddstr(y, x * 2, "  ");
+                    getmaxyx(stdscr, max_y, max_x); // Get screen dimensions (LINES and COLS)
+                    z = max_y - 24;
+                    mvaddstr(y + z, x * 2, "  ");
                     attroff(COLOR_PAIR(color_idx));
                 }
             }
