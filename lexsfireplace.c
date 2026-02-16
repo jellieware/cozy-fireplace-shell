@@ -8,7 +8,7 @@
 
 // This array maps to 256-color palette (flame colors: black -> red -> orange -> yellow -> white)
 int fire_palette[] = {
-    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 230, 231, 231, 231, 231, 231, 231, 231, 231, 231,
+    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 230, 227, 227, 227, 227, 227, 227, 227, 231, 231,
 };
 #define PALETTE_SIZE 22
 
