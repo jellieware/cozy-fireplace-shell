@@ -8,9 +8,10 @@
 
 // This array maps to 256-color palette (flame colors: black -> red -> orange -> yellow -> white)
 int fire_palette[] = {
-    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 230, 227, 227, 227, 227, 227, 227, 227, 231, 231,
+    16, 52, 88, 124, 160, 196, 202, 208, 214, 220, 226, 227, 228, 229, 230, 231, 255, 254, 253, 252, 251, 250, 249, 248
+
 };
-#define PALETTE_SIZE 22
+#define PALETTE_SIZE 24
 
 int main() {
     int fire[HEIGHT][WIDTH] = {0};
@@ -31,7 +32,7 @@ int main() {
     while (getch() != 'q') {
         // 1. Seed the bottom row with random heat
         for (int x = 0; x < WIDTH; x++) {
-            fire[HEIGHT - 1][x] = rand() % PALETTE_SIZE;
+            fire[HEIGHT - 2][x] = rand() % PALETTE_SIZE;
         }
 
         // 2. Propagate heat upwards
@@ -44,8 +45,8 @@ int main() {
                             fire[(y + 2) % HEIGHT][x];
                 
                 int avg = total / 4;
-                if (avg > 0 && rand() % 18 > 16) {
-                    fire[y][x] = avg - 6; // Decay
+                if (avg > 0 && rand() % 24 > 20) {
+                    fire[y][x] = avg - 2; // Decay
                 } else {
                     fire[y][x] = avg;
                 }
