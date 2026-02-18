@@ -4,7 +4,6 @@ A cozy fireplace for the shell
 ![1000970133](https://github.com/user-attachments/assets/370f7169-a8e3-4500-9d5c-c4db9fa2ee4f)
 
 <br><br>
-Compile with:
 <br><br>
 commands:
 <br><br>
