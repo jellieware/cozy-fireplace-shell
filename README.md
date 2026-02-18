@@ -9,7 +9,7 @@ commands:
 <br><br>
 apt-get install ncurses<br><br>
 or<br><br>
-apt-get install ncurses-dev<br><br>
+apt-get install ncurses-devel<br><br>
 
 apt-get install build-essential<br><br>
 
@@ -23,7 +23,7 @@ run with:<br><br>
 
 bash fire<br><br>
 or <br><br>
-,/fire
+./fire
 <br><br>
 
 
