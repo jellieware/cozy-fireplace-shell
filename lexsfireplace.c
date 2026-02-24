@@ -3,7 +3,7 @@
 #include <time.h>
 #include <unistd.h>
 
-#define WIDTH 60
+#define WIDTH 40
 #define HEIGHT 24
 
 // This array maps to 256-color palette (flame colors: black -> red -> orange -> yellow -> white)
