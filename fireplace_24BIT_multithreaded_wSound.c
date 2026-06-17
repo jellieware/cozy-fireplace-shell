@@ -6,11 +6,12 @@
 #include <time.h>
 #include <unistd.h>
 
-#define WIDTH 48
+#define WIDTH 42
 #define HEIGHT 28
 
 // This array maps to 256-color palette (flame colors: black -> red -> orange ->
 // yellow -> white)
+
 int fire_palette[] = {16,  52,  88,  124, 160, 196, 202, 208, 214,
                       220, 226, 227, 228, 229, 230, 231, 255, 254,
                       253, 252, 251, 250, 249, 248
@@ -79,6 +80,7 @@ void *loop_one(void *arg) {
   int y;
   int z;
   int max_x, max_y;
+  int start_x = (max_x - (WIDTH * 2)) / 2;
 
   // Initialize ncurses
   initscr();
@@ -122,6 +124,12 @@ void *loop_one(void *arg) {
 
     // 3. Render to screen
     erase();
+getmaxyx(stdscr, max_y, max_x); // 1. Fetch current live terminal size
+
+// 2. Compute dynamic centering offsets
+int start_x = (max_x - (WIDTH * 2)) / 2; 
+int start_y = (max_y - HEIGHT) / 2;      // Centers it vertically too! 
+                                          // (Or use your 
     for (int y = 0; y < HEIGHT; y++) {
       for (int x = 0; x < WIDTH; x++) {
         int color_idx = fire[y][x];
@@ -131,7 +139,7 @@ void *loop_one(void *arg) {
           getmaxyx(stdscr, max_y,
                    max_x); // Get screen dimensions (LINES and COLS)
           z = max_y - 28;
-          mvaddstr(y + z, x * 2, "  ");
+          mvaddstr(start_y + y, start_x + (x * 2), "  ");
           attroff(COLOR_PAIR(color_idx));
         }
       }
