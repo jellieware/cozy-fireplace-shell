@@ -124,12 +124,12 @@ void *loop_one(void *arg) {
 
     // 3. Render to screen
     erase();
-getmaxyx(stdscr, max_y, max_x); // 1. Fetch current live terminal size
+    getmaxyx(stdscr, max_y, max_x); // 1. Fetch current live terminal size
 
-// 2. Compute dynamic centering offsets
-int start_x = (max_x - (WIDTH * 2)) / 2; 
-int start_y = (max_y - HEIGHT) / 2;      // Centers it vertically too! 
-                                          // (Or use your 
+    // 2. Compute dynamic centering offsets
+    int start_x = (max_x - (WIDTH * 2)) / 2;
+    int start_y = (max_y - HEIGHT) / 2; // Centers it vertically too!
+                                        // (Or use your
     for (int y = 0; y < HEIGHT; y++) {
       for (int x = 0; x < WIDTH; x++) {
         int color_idx = fire[y][x];
