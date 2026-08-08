@@ -1,0 +1,397 @@
+#include <ncurses.h>
+#include <stdlib.h>
+#include <time.h>
+#include <math.h>
+#include <pthread.h>
+#include <alsa/asoundlib.h>
+#define MAX_W 512
+#define MAX_H 256
+
+// #define PALETTE_SIZE 24
+#define PCM_DEVICE "default"
+#define SAMPLE_RATE 44100
+#define CHANNELS 1
+#define BUFFER_SIZE 4096
+// #define PALETTE_SIZE 24
+
+
+int fire_pixels[MAX_H][MAX_W];
+
+typedef struct {
+    int r, g, b;
+} RGB;
+
+// Ted Martens Pixel Art Fire Palette (Deep Burgundy -> Crimson -> Orange -> Golden -> White Core)
+RGB get_ted_martens_color(int heat) {
+    if (heat <= 0) return (RGB){0, 0, 0};
+
+    float t = (float)heat / 36.0f;
+
+    if (t > 0.88f) { 
+        float factor = (t - 0.88f) / 0.12f;
+        return (RGB){255, (int)(240 + factor * 15), (int)(180 + factor * 75)};
+    } else if (t > 0.65f) { 
+        float factor = (t - 0.65f) / 0.23f;
+        return (RGB){255, (int)(160 + factor * 80), (int)(10 + factor * 170)};
+    } else if (t > 0.40f) { 
+        float factor = (t - 0.40f) / 0.25f;
+        return (RGB){255, (int)(60 + factor * 100), 0};
+    } else if (t > 0.18f) { 
+        float factor = (t - 0.18f) / 0.22f;
+        return (RGB){(int)(120 + factor * 135), (int)(5 + factor * 15), 0};
+    } else { 
+        float factor = t / 0.18f;
+        return (RGB){(int)(factor * 120), 0, (int)(factor * 20)};
+    }
+}
+
+void setup_native_fire_palette() {
+    start_color();
+    use_default_colors();
+
+    for (int heat = 1; heat <= 36; heat++) {
+        RGB c = get_ted_martens_color(heat);
+
+        if (can_change_color()) {
+            init_color(heat, (c.r * 1000) / 255, (c.g * 1000) / 255, (c.b * 1000) / 255);
+            init_pair(heat, heat, -1);
+        } else {
+            int pair_color = (heat > 28) ? COLOR_WHITE : (heat > 18) ? COLOR_YELLOW : COLOR_RED;
+            init_pair(heat, pair_color, -1);
+        }
+    }
+}
+
+void update_fire(int fire_w, int fire_h) {
+    static float time_counter = 0.0f;
+    static float wind_bias = 0.0f;
+    time_counter += 0.08f;
+
+    wind_bias = sinf(time_counter * 0.4f) * 0.6f;
+
+    // 1. Base Heat: Center-concentrated Gaussian curve
+    for (int x = 0; x < fire_w; x++) {
+        // Normalized distance from horizontal center (-1.0 to 1.0)
+        float dx = ((float)x / (float)fire_w) * 2.0f - 1.0f;
+
+        // Gaussian bell curve peaking sharply in the middle
+        float center_weight = expf(-powf(dx, 2.0f) * 5.0f);
+
+        // Wave spires focused near center
+        float spire1 = sinf(dx * 8.0f + time_counter * 2.5f);
+        float spire2 = cosf(dx * 14.0f - time_counter * 3.0f);
+        float base_wave = (spire1 * 0.5f) + (spire2 * 0.5f);
+
+        int base_heat = (int)((26.0f + base_wave * 10.0f) * center_weight);
+
+        // Core popping flares
+        if (fabsf(dx) < 0.3f && (rand() % 5 == 0)) {
+            base_heat += rand() % 8;
+        }
+
+        if (base_heat > 36) base_heat = 36;
+        if (base_heat < 0)  base_heat = 0;
+
+        fire_pixels[fire_h - 1][x] = base_heat;
+    }
+
+    // 2. Propagate Upward with Center-Sparing Decay Mask
+    for (int y = 1; y < fire_h; y++) {
+        for (int x = 0; x < fire_w; x++) {
+            int left  = (x > 0) ? fire_pixels[y][x - 1] : fire_pixels[y][x];
+            int right = (x < fire_w - 1) ? fire_pixels[y][x + 1] : fire_pixels[y][x];
+            int curr  = fire_pixels[y][x];
+
+            if (curr == 0 && left == 0 && right == 0) {
+                fire_pixels[y - 1][x] = 0;
+                continue;
+            }
+
+            int blended = (curr * 3 + left + right) / 5;
+
+            // Directional drift
+            int drift = 0;
+            int rnd = rand() % 100;
+            if (rnd < 30) drift = 0;
+            else if (rnd < 60) drift = (wind_bias > 0) ? 1 : -1;
+            else if (rnd < 80) drift = (wind_bias > 0) ? -1 : 1;
+            else drift = (rand() % 3) - 1;
+
+            int dst_x = x + drift;
+            if (dst_x < 0) dst_x = 0;
+            if (dst_x >= fire_w) dst_x = fire_w - 1;
+
+            // Decay calculation based on distance from center
+            float dx = ((float)x / (float)fire_w) * 2.0f - 1.0f;
+            float dist_from_center = fabsf(dx);
+
+            int decay = 1;
+
+            // Center column preservation (flames reach much higher in middle)
+            if (dist_from_center > 0.25f) decay += 1;
+            if (dist_from_center > 0.50f) decay += 2;
+            if (dist_from_center > 0.70f) decay += 4;
+
+            // Vertical attenuation
+            if (y < fire_h * 0.70f && dist_from_center > 0.3f) decay += 1;
+            if (y < fire_h * 0.40f) decay += 2;
+            if (y < fire_h * 0.20f) decay += 3;
+
+            // Maintain pixel-art edges
+            if (abs(curr - left) > 6 || abs(curr - right) > 6) {
+                decay += 2;
+            }
+
+            int new_heat = blended - decay;
+            fire_pixels[y - 1][dst_x] = (new_heat > 0) ? new_heat : 0;
+        }
+    }
+
+    // 3. Spire Top Embers (launched near middle apex)
+    if (rand() % 2 == 0) {
+        int center_offset = (rand() % (fire_w / 3)) - (fire_w / 6);
+        int ex = (fire_w / 2) + center_offset;
+        int ey = (fire_h / 4) + (rand() % (fire_h / 3));
+
+        if (ex >= 0 && ex < fire_w && ey > 1) {
+            if (fire_pixels[ey][ex] > 6 && fire_pixels[ey][ex] < 24) {
+                fire_pixels[ey - 1][ex] = fire_pixels[ey][ex] + 8;
+            }
+        }
+    }
+}
+
+void render_scene(int fire_w, int fire_h) {
+    for (int y = 0; y < fire_h; y++) {
+        for (int x = 0; x < fire_w; x++) {
+            int heat = fire_pixels[y][x];
+            int px = x * 2; // 1:1 aspect ratio square
+
+            if (heat <= 0) {
+                mvaddstr(y, px, "  ");
+            } else {
+                if (heat > 36) heat = 36;
+
+                attron(COLOR_PAIR(heat));
+                mvaddstr(y, px, "██");
+                attroff(COLOR_PAIR(heat));
+            }
+        }
+    }
+}
+
+void *loop_one(void *arg) {
+    srand(time(NULL));
+
+    initscr();
+    cbreak();
+    noecho();
+    curs_set(0);
+    timeout(45);
+
+    if (!has_colors()) {
+        endwin();
+        printf("Your terminal does not support colors.\n");
+        return 0;
+    }
+
+    setup_native_fire_palette();
+
+    int last_w = 0, last_h = 0;
+
+    while (1) {
+        int max_y, max_x;
+        getmaxyx(stdscr, max_y, max_x);
+
+        if (max_y > MAX_H) max_y = MAX_H;
+        if (max_x > MAX_W * 2) max_x = MAX_W * 2;
+
+        int fire_w = max_x / 2;
+        int fire_h = max_y;
+
+        if (fire_w != last_w || fire_h != last_h) {
+            erase();
+            last_w = fire_w;
+            last_h = fire_h;
+        }
+
+        update_fire(fire_w, fire_h);
+        render_scene(fire_w, fire_h);
+        refresh();
+
+        int ch = getch();
+        if (ch == 'q' || ch == 'Q' || ch == 27) {
+            break;
+        }
+    }
+
+    endwin();
+    return 0;
+}
+
+void *loop_two(void *arg) {
+
+  int rc;
+  snd_pcm_t *handle;
+  snd_pcm_hw_params_t *params;
+  unsigned int val = SAMPLE_RATE;
+  snd_pcm_uframes_t frames = BUFFER_SIZE;
+  char buffer[BUFFER_SIZE * 2];
+  short *samples = (short *)buffer;
+
+  srand(time(NULL));
+
+  rc = snd_pcm_open(&handle, PCM_DEVICE, SND_PCM_STREAM_PLAYBACK, 0);
+  if (rc < 0) {
+    fprintf(stderr, "unable to open pcm device: %s\n", snd_strerror(rc));
+    exit(1);
+  }
+
+  snd_pcm_hw_params_alloca(&params);
+  snd_pcm_hw_params_any(handle, params);
+  snd_pcm_hw_params_set_access(handle, params, SND_PCM_ACCESS_RW_INTERLEAVED);
+  snd_pcm_hw_params_set_format(handle, params, SND_PCM_FORMAT_S16_LE);
+  snd_pcm_hw_params_set_channels(handle, params, CHANNELS);
+  snd_pcm_hw_params_set_rate_near(handle, params, &val, 0);
+  snd_pcm_hw_params(handle, params);
+
+  // Flame Accumulator to strip noise hiss (Brownian movement emulation)
+  double flame_accumulator = 0.0;
+  double last_swoosh = 0.0;
+  double base_swoosh_alpha = 0.04;
+
+  // Sparse Pop execution states (Rare, heavy)
+  double pop_envelope = 0.0;
+  double pop_decay = 0.9996;
+  double pop_max_vol = 0.35;
+  long pop_cooldown = 0;
+  double pop_filter_alpha = 0.05;
+  double pop_filter_out = 0.0;
+
+  // Organic Ember Wave variables
+  double ember_filter_out = 0.0;
+  double ember_filter_alpha = 0.07;
+
+  // Global clock tracking for overlapping waves
+  unsigned long sample_counter = 0;
+
+  while (1) {
+
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+      sample_counter++;
+      double raw_noise = ((double)rand() / RAND_MAX * 2.0 - 1.0);
+
+      // 1. Emulate Brown/Red Noise for the flame to drop harsh high-end hiss
+      flame_accumulator = (flame_accumulator + (0.12 * raw_noise)) * 0.98;
+
+      // 2. Overlapping Turbulence Grid
+      double osc1 = 0.4 * sin(sample_counter * 0.00004);
+      double osc2 = 0.3 * sin(sample_counter * 0.00012);
+      double osc3 = 0.2 * cos(sample_counter * 0.00045);
+
+      double total_turbulence = osc1 + osc2 + osc3 + (0.1 * raw_noise);
+      if (total_turbulence > 1.0)
+        total_turbulence = 1.0;
+      if (total_turbulence < -1.0)
+        total_turbulence = -1.0;
+
+      // 3. Modulate Low-Pass using the dense turbulence index
+      double dynamic_swoosh_alpha =
+          base_swoosh_alpha + (total_turbulence * 0.015);
+      if (dynamic_swoosh_alpha < 0.01)
+        dynamic_swoosh_alpha = 0.01;
+
+      last_swoosh = last_swoosh +
+                    dynamic_swoosh_alpha * (flame_accumulator - last_swoosh);
+
+      // Tweak: Lowered the base volume and heavily compressed the turbulence
+      // swing range. Baseline dropped to 0.07 (down from 0.13), and variance
+      // window dropped to 0.02 (down from 0.05).
+      double current_flame_vol = 0.07 + (total_turbulence * 0.02);
+      double sample = last_swoosh * current_flame_vol;
+
+      // 4. Thermal Oscillator for Ember Sparkles
+      double ember_thermal_wave = 0.4 * sin(sample_counter * 0.00002) +
+                                  0.3 * sin(sample_counter * 0.000007) +
+                                  0.3 * ((double)rand() / RAND_MAX);
+
+      // 5. Dynamic Organic Ember Engine
+      double ember_pulse = 0.0;
+      double current_ember_chance = 4.0 + (ember_thermal_wave * 12.0);
+      if (current_ember_chance < 1.0)
+        current_ember_chance = 1.0;
+
+      if (rand() % 4000 < current_ember_chance) {
+        double micro_intensity = 0.020 + ((double)rand() / RAND_MAX * 0.040);
+        ember_pulse = raw_noise * micro_intensity;
+      }
+
+      double dynamic_ember_alpha = ember_filter_alpha + (raw_noise * 0.01);
+      if (dynamic_ember_alpha < 0.04)
+        dynamic_ember_alpha = 0.04;
+
+      ember_filter_out = ember_filter_out +
+                         dynamic_ember_alpha * (ember_pulse - ember_filter_out);
+      sample += ember_filter_out * 1.3;
+
+      // 6. Less Frequent, Deep Wood Pops
+      if (pop_cooldown > 0)
+        pop_cooldown--;
+
+      if (pop_cooldown == 0 && pop_envelope <= 0.001) {
+        if (rand() % 900000 < 2) {
+          pop_envelope = 1.0;
+          pop_max_vol = 0.25 + ((double)rand() / RAND_MAX * 0.15);
+          pop_decay = 0.9994 + ((double)rand() / RAND_MAX * 0.0002);
+          pop_filter_alpha = 0.04 + ((double)rand() / RAND_MAX * 0.04);
+          pop_cooldown = SAMPLE_RATE * (12 + rand() % 18);
+        }
+      }
+
+      // Process active rare pop envelope
+      double pop_signal = 0.0;
+      if (pop_envelope > 0.001) {
+        pop_signal = raw_noise * pop_envelope * pop_max_vol;
+        pop_envelope *= pop_decay;
+      }
+      pop_filter_out =
+          pop_filter_out + pop_filter_alpha * (pop_signal - pop_filter_out);
+      sample += pop_filter_out;
+
+      // Safe clipping protection
+      if (sample > 1.0)
+        sample = 1.0;
+      if (sample < -1.0)
+        sample = -1.0;
+
+      samples[i] = (short)(sample * 32767);
+    }
+
+    rc = snd_pcm_writei(handle, buffer, frames);
+    if (rc == -EPIPE) {
+      snd_pcm_prepare(handle);
+    } else if (rc < 0) {
+      fprintf(stderr, "error writing to pcm: %s\n", snd_strerror(rc));
+    }
+  }
+  snd_pcm_drain(handle);
+  snd_pcm_close(handle);
+  return 0;
+}
+
+int main() {
+
+  pthread_t thread1, thread2;
+
+  // 1. Start the first thread to run loop_one
+  pthread_create(&thread1, NULL, loop_one, NULL);
+
+  // 2. Start the second thread to run loop_two
+  pthread_create(&thread2, NULL, loop_two, NULL);
+
+  // 3. Wait for both threads to finish (they run forever in this example)
+  pthread_join(thread1, NULL);
+  pthread_join(thread2, NULL);
+
+  return 0;
+}
