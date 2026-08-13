@@ -2,10 +2,7 @@
 A cozy fireplace for the shell
 <br><br>
 
-[([https://youtu.be/5XQis5gsJqo?feature=shared](https://youtu.be/5XQis5gsJqo?feature=shared))
-
-](https://youtu.be/zwnBGuzrr38?is=qFLUnqZt2rvniXYp)
-<img width="800" height="428" alt="1000071975" src="https://github.com/user-attachments/assets/5727b5bd-0a20-4216-8190-3055b3e83653" />
+https://youtu.be/zwnBGuzrr38?is=qFLUnqZt2rvniXYp
 
 
 
