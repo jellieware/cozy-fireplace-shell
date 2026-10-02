@@ -27,5 +27,9 @@ gcc pixelfireplace.c -o fire -lncurses -lm -lasound
 clang firepulse.c -o fire -lncurses -lm -lpulse-simple -lpulse
 
 
+<br><br>
+
+clang firepulse.c -o fire -lncurses -lm -lSDL2
+
 
 
