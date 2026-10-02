@@ -22,6 +22,10 @@ compile:<br><br>
 
 gcc pixelfireplace.c -o fire -lncurses -lm -lasound
 
+<br><br>
+
+clang firepulse.c -o fire -lncurses -lm -lpulse-simple -lpulse
+
 
 
 
